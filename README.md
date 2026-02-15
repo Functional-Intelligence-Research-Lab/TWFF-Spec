@@ -133,7 +133,7 @@ The process log (meta/process-log.json) captures how the document was constructe
       "timestamp": "2026-02-16T09:01:15Z",
       "type": "edit",
       "meta": {
-        "char_delta": 15,
+        
         "position_start": 0,
         "position_end": 15,
         "source": "human"
@@ -187,7 +187,7 @@ The process log (meta/process-log.json) captures how the document was constructe
 | ------------- | ------------- |-------------|
 |`session_start`| Beginning of a writing session |(none)|
 |`session_end` |End of session| (none)|
-|`edit` |Human typing or deletion| `char_delta`, `position_start`, p`osition_end`, `source` ("human")
+|`edit` |Human typing or deletion| `position_start`, p`osition_end`, `source` ("human")
 |`paste` |Text pasted from external source| `char_count`, `source` ("external" or "ai"), `position_start`, `position_end`|
 |`ai_interaction` |AI assistant invoked |`interaction_type`, `model`, `input_preview`, `output_preview`, `output_length`, `position_start`, `position_end`, `acceptance`|
 |`chat_interaction`| Multi-turn chat with AI| `message_count`, `message_preview`, `source_file` (link to full transcript)|

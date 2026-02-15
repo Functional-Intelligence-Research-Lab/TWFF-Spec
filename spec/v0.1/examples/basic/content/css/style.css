@@ -1,0 +1,58 @@
+/* TWFF Annotation Styles */
+
+.ai-paraphrase {
+    background-color: #e8f4fd;
+    border-left: 3px solid #3498db;
+    padding: 2px 4px;
+    position: relative;
+}
+
+.ai-generated {
+    background-color: #e8f6f3;
+    border-left: 3px solid #1abc9c;
+    padding: 2px 4px;
+    position: relative;
+}
+
+.external-source {
+    background-color: #fef9e7;
+    border-left: 3px solid #f1c40f;
+    padding: 2px 4px;
+    position: relative;
+}
+
+.ai-paraphrase::after,
+.ai-generated::after,
+.external-source::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    background: rgba(0,0,0,0.8);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+    z-index: 10;
+}
+
+.ai-paraphrase:hover::after,
+.ai-generated:hover::after,
+.external-source:hover::after {
+    opacity: 1;
+}
+
+/* Basic page styling (for the exported visualisation) */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    line-height: 1.6;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    color: #333;
+    background-color: #f9f9f9;
+}

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>TWFF Visualisation: Wind Energy Essay</title>
+    <style>
+        /* Include the same CSS as in content/css/style.css */
+        .ai-paraphrase {
+            background-color: #e8f4fd;
+            border-left: 3px solid #3498db;
+            padding: 2px 4px;
+            position: relative;
+        }
+        .ai-generated {
+            background-color: #e8f6f3;
+            border-left: 3px solid #1abc9c;
+            padding: 2px 4px;
+            position: relative;
+        }
+        .external-source {
+            background-color: #fef9e7;
+            border-left: 3px solid #f1c40f;
+            padding: 2px 4px;
+            position: relative;
+        }
+        .ai-paraphrase::after,
+        .ai-generated::after,
+        .external-source::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+            z-index: 10;
+        }
+        .ai-paraphrase:hover::after,
+        .ai-generated:hover::after,
+        .external-source:hover::after {
+            opacity: 1;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+            background-color: #f9f9f9;
+        }
+        .document-container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        .document-title {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin: 20px 0;
+            justify-content: center;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .color-box {
+            width: 20px;
+            height: 20px;
+            margin-right: 8px;
+            border-radius: 3px;
+        }
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="document-container">
+        <h2 class="document-title">Harnessing the Wind: A Path to Sustainability</h2>
+
+        <div class="legend">
+            <div class="legend-item">
+                <div class="color-box" style="background-color: #e8f4fd; border-left: 3px solid #3498db;"></div>
+                <span>AI Paraphrased Content</span>
+            </div>
+            <div class="legend-item">
+                <div class="color-box" style="background-color: #e8f6f3; border-left: 3px solid #1abc9c;"></div>
+                <span>AI Generated Content</span>
+            </div>
+            <div class="legend-item">
+                <div class="color-box" style="background-color: #fef9e7; border-left: 3px solid #f1c40f;"></div>
+                <span>External Source Content</span>
+            </div>
+        </div>
+
+        <p>
+            Wind energy has emerged as one of the most promising renewable sources.
+            <span class="ai-paraphrase" data-tooltip="Paraphrased by integrated-Gemma2 on 2026-02-15 (from a pasted draft)">
+                Global wind energy capacity has been observed to double approximately every three years
+            </span>,
+            it now powers millions of homes. However, challenges such as intermittency
+            and land use remain.
+        </p>
+
+        <p>
+            <span class="ai-generated" data-tooltip="Drafted by integrated-Gemma2 on 2026-02-15">
+                Innovations in turbine design and energy storage are addressing these issues.
+            </span>
+            For instance,
+            <span class="external-source" data-tooltip="Pasted from a research article on 2026-02-15">
+                floating offshore turbines can access stronger winds without visual pollution.
+            </span>
+            Meanwhile, AI‑driven predictive maintenance reduces downtime and costs.
+        </p>
+    </div>
+
+    <footer>
+        <p>Generated from <code>basic.twff</code> • Tracked Writing File Format v0.1</p>
+    </footer>
+</body>
+</html>
