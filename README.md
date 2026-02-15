@@ -1,12 +1,12 @@
 # Tracked Writing File Format (TWFF) Specification v0.1
 
-<center>
-<img alt="figure1:visualization of sample TWFF declaration" src=image.png width=50%>
-</center>
+<div align="center"><img src="image.png" width=50% alt="figure1:visualization of sample TWFF declaration" /></div>
 
 ## Overview
 
-TWFF is a ZIP-based container format that stores both the final written work and the metadata of how it was created. It enables Verifiable Effort; a cryptographic proof of labor that a student or author can voluntarily disclose to verify the authenticity of their work.
+TWFF is a ZIP-based container format that stores the final written work, all other required resources for processing and the metadata of how the work was created.
+
+The goal is to enable Verifiable Effort; a cryptographic proof of labor that an author can voluntarily disclose to verify the authenticity of their work.
 
 Unlike probabilistic AI detectors that guess authorship from final text, TWFF provides a deterministic audit trail of the composition process. It is the Glass Box counterpart to the black-box detection industry.
 
