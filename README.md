@@ -203,6 +203,8 @@ All data is generated and stored locally. The user decides:
 - [x] Specification v0.1 (schema, event types, container structure)
 - [x] Reference implementation — Glass Box editor (Python / NiceGUI)
 - [x] SHA-256 hash chain (integrity verification)
+- [ ] properly define how the process-log.json interacts with the signatures.xml.
+- [ ] Schema Enforcement: add script spec/validate_examples.py.
 - [ ] Browser extension (Google Docs / Overleaf)
 - [ ] TWFF visualizer (standalone)
 - [ ] LMS integration (Canvas, Moodle)
