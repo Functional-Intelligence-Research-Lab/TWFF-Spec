@@ -1,10 +1,16 @@
-# TWFF — Tracked Writing File Format
+# Glassbox Editor
 
-Open standard for **Verifiable Effort** in writing.
-Moving past probabilistic AI detection toward deterministic process transparency.
-
-→ **Read the Manifesto:** [firl.nl/research/blog/Manifesto](https://firl.nl/research/blog/Manifesto/)
-→ **Try the demo:** [demo.firl.nl](https://demo.firl.nl)
+<div align="center">
+  <img src="glassbox_logo.png" width="10%" alt="Visualization of a sample TWFF process log" />
+  <br/><br/>
+  <strong>Editor for the open standard for Verifiable Effort in writing.</strong><br/>
+  Moving past AI detection toward deterministic process transparency.
+  <br/><br/>
+    
+  <a href="https://demo.firl.nl/">Live Demo</a> ·
+  <a href="https://firl.nl/research/blog/Manifesto/">Read the Manifesto</a> ·
+  <a href="./spec/v0.1/README.md">Spec v0.1</a> ·
+</div>
 
 ---
 
