@@ -35,7 +35,7 @@ def _create_header(editor: Editor, palette: CommandPalette) -> None:
 
             #  Left: brand
             with ui.row().classes("items-center gap-2"):
-                ui.image("image.png").classes("h-5 w-5 object-contain")
+                ui.image("glassbox\glassbox_logo.png").classes("h-5 w-5 object-contain")
                 with ui.column().classes("gap-0 leading-none"):
                     ui.label("Glass Box").classes("gb-brand-name")
                     ui.label("by FIRL").classes("gb-brand-sub")

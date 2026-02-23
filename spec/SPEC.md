@@ -242,32 +242,125 @@ Records a periodic auto-save snapshot. Implementers SHOULD emit checkpoints at r
 
 ---
 
-## 5. Integrity
+## 5. Data Integrity
 
-### 5.1 Hash Chain (v0.1)
+### 5.1 Overview
 
-Implementers SHOULD include a `_integrity` block in `process-log.json`:
+TWFF process logs use a **per-event chained hash** model. Each event in the
+`events` array carries a `_hash` field whose value is a SHA-256 hash of the
+current event's data chained with the hash of the preceding event. This
+structure means:
+
+1. Any modification to an event invalidates that event's hash **and all
+   subsequent event hashes**.
+2. Any insertion or deletion of events is detectable — the chain breaks.
+3. Verification requires only the `session_id` and the `events` array — no
+   external keys or authorities.
+
+### 5.2 Per-Event Hash (`_hash`)
+
+Each event SHOULD include a `_hash` field computed as follows:
+
+```
+event_payload := {
+    "timestamp":      event.timestamp,
+    "type":           event.type,
+    "meta":           event.meta      // compact JSON, keys sorted
+}
+
+hash_input := JSON.compact_sorted(event_payload)
+           + "|"
+           + previous_hash           // empty string "" for first event
+           + "|"
+           + session_id
+
+event._hash := hex( SHA-256( UTF-8( hash_input ) ) )
+```
+
+Where:
+- `JSON.compact_sorted(x)` means JSON serialized with no extra whitespace and
+  all object keys sorted lexicographically (`sort_keys=True` in Python, or
+  `JSON.stringify(x, Object.keys(x).sort())` equivalent in JavaScript).
+- `previous_hash` is the `_hash` value of the immediately preceding event.
+  For the first event (`session_start`), `previous_hash` is the empty string `""`.
+- `session_id` is the UUID v4 from the top-level `session_id` field.
+- `|` is a literal ASCII pipe character used as a separator.
+
+**Schema addition:** The event schema defined in §4.2 is extended:
+
+| Field   | Type   | Required    | Description |
+|---------|--------|-------------|-------------|
+| `_hash` | string | RECOMMENDED | Hex SHA-256 per-event chain hash (see §5.2) |
+
+The `_hash` field MUST NOT be included in the `event_payload` during hash
+computation (it is the output, not an input).
+
+### 5.3 Top-Level `_integrity` Block
+
+Conformant producers SHOULD include a `_integrity` block at the top level of
+`process-log.json`:
 
 ```json
 "_integrity": {
-  "algorithm": "SHA-256",
-  "salt": "session_id",
-  "hash": "<hex-encoded SHA-256 of JSON(events) + session_id>",
-  "note": "Hash of the events array as compact JSON, concatenated with session_id."
+  "algorithm":   "SHA-256-CHAIN",
+  "chain_length": 12,
+  "head_hash":   "<_hash of the last event in the array>",
+  "session_id":  "<UUID v4 — same as top-level session_id>",
+  "note":        "Per-event chained hash. Verify using spec §5.2."
 }
 ```
 
-The hash is computed as:
+The `head_hash` is the `_hash` value of the final event in the `events` array
+(typically `session_end`). A verifier can:
+1. Recompute the hash chain from the first event
+2. Compare the final computed hash against `_integrity.head_hash`
+3. If they match: log is intact. If not: the log has been modified.
+
+### 5.4 Reference Implementation
+
+see [`spec/verification/verify.py`](./verification/verify.py) for a reference implementation of the verification logic.
+
+### 5.5 Migration from v0.1 Bulk Hash
+
+TWFF v0.1 used a single bulk hash of the entire `events` array:
 
 ```text
-SHA-256( JSON.stringify(events, {sort_keys: true}) + session_id )
+SHA-256( JSON.stringify(events, sort_keys=True) + session_id )
 ```
 
-This allows any verifier to detect post-hoc modification of the event log.
+This is now superseded by the per-event chain (§5.2). Implementers producing
+v0.1 logs without `_hash` fields on individual events SHOULD upgrade to the
+per-event chain. Consumers MUST accept both formats and use whichever
+`_integrity.algorithm` field is present (`"SHA-256"` for v0.1 bulk,
+`"SHA-256-CHAIN"` for per-event chain).
 
-### 5.2 Digital Signatures (Future — v1.5)
+### 5.6 Future: Digital Signatures (v1.5+)
 
-Future versions will support RSA detached signatures in `META-INF/signatures.xml`, enabling public-key verification of the process log.
+The chained hash model is designed to compose with digital signatures.
+A future version will support:
+
+```xml
+<!-- META-INF/signatures.xml -->
+<Signature>
+  <SignedInfo>
+    <DigestMethod Algorithm="SHA-256-CHAIN"/>
+    <DigestValue><!-- head_hash --></DigestValue>
+  </SignedInfo>
+  <SignatureValue><!-- RSA/ECDSA signature over head_hash --></SignatureValue>
+  <KeyInfo><!-- Author's public key or key reference --></KeyInfo>
+</Signature>
+```
+
+This will allow a TWFF consumer to:
+
+1. Verify the hash chain (tamper detection — no key required)
+2. Verify the digital signature (authorship proof — requires author's public key)
+
+The relationship between `process-log.json` and `META-INF/signatures.xml` is:
+
+- `process-log.json` carries the hash chain (`_hash` per event + `_integrity.head_hash`)
+- `signatures.xml` signs the `head_hash` with a private key
+- Verification: hash chain → head_hash → digital signature verification
 
 ---
 

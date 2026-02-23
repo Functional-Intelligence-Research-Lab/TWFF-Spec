@@ -1,7 +1,5 @@
 /*
  * Glass Box — Theme CSS
- * ─
- * Visual language: glass-auditable, warm-scholarly. "You can see through it."
  *
  * Accent: pastel blue (#3b82f6 / blue-500 family) — audit, transparency, trust.
  * Ground: warm near-white — the desk surface beneath the paper.
@@ -944,4 +942,36 @@ html, body {
   color:         var(--gb-ink-soft) !important;
   display:       block !important;
   margin-bottom: 1rem !important;
+}
+
+/* Ghost text span — appears after cursor, non-interactive */
+.gb-ghost-text {
+    color: #9ca3af;              /* muted grey */
+    font-style: italic;
+    user-select: none;
+    pointer-events: none;
+    border-bottom: 1px dashed #d1d5db;
+    margin-left: 2px;
+    /* Subtle fade-in */
+    animation: gbGhostFade 0.15s ease-in;
+}
+
+@keyframes gbGhostFade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+/* Dark theme override */
+[data-theme="dark"] .gb-ghost-text {
+    color: #6b7280;
+    border-bottom-color: #4b5563;
+}
+
+/* Tab hint tooltip shown below ghost */
+.gb-ghost-text::after {
+    content: " [Tab]";
+    font-size: 0.65em;
+    color: #d1d5db;
+    font-style: normal;
+    letter-spacing: 0.05em;
 }
