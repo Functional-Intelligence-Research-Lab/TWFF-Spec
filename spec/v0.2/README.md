@@ -1,7 +1,7 @@
 # Tracked Writing File Format (TWFF)
 
 <div align="center">
-  <img src="./spec/twff-example.png" width="40%" alt="Visualization of a sample TWFF process log" />
+  <img src="../twff-example.png" width="40%" alt="Visualization of a sample TWFF process log" />
   <br/><br/>
   <strong>An open standard for declaring AI use in writing.</strong><br/>
   Moving past probabilistic AI detection toward deterministic process transparency.

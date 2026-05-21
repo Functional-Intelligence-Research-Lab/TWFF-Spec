@@ -1,0 +1,497 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/Functional-Intelligence-Research-Lab/twff/main/spec/process-log.schema.json",
+  "title": "TWFF Process Log",
+  "description": "Schema for the process-log.json file in a TWFF container, version 0.2. Supports Verifiable Effort declarations relevant to EU AI Act Article 50 and 52 transparency requirements. Designed for forward compatibility with W3C Data Privacy Vocabulary (DPV) mapping in v0.3.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "enum": ["0.2.0"],
+      "description": "TWFF specification version. Must be exactly '0.2.0' for this schema."
+    },
+    "session_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Universally unique identifier for this writing session. Used as the salt for the hash chain root — all event hashes are ultimately anchored to this value."
+    },
+    "user_id": {
+      "type": "string",
+      "description": "Optional author identifier. By default this MUST be an anonymous, rotatable pseudonymous ID (e.g. 'anon-7f3a2c1b9d4e'). No personally identifiable information should be stored here directly. Platform integrations (e.g. a Google Docs or Overleaf extension) MAY populate this with a hashed or pseudonymous platform-account identifier, provided the user has consented. Intended for mapping to dpv:pseudonymousID in v0.3. Users retain the right to rotate this between sessions."
+    },
+    "start_time": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp marking the start of the writing session."
+    },
+    "end_time": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp marking the end of the writing session."
+    },
+    "content_source": {
+      "type": "string",
+      "description": "Relative path to the primary document within the TWFF container (e.g. 'content/document.xhtml'). Must resolve to a file present in the container's content/ directory."
+    },
+    "events": {
+      "type": "array",
+      "description": "Ordered, append-only list of writing process events. Events MUST appear in strict chronological order. Each event SHOULD include a _hash field forming a tamper-evident chain. The first event must be session_start; the last must be session_end.",
+      "items": {
+        "anyOf": [
+          { "$ref": "#/definitions/session_start" },
+          { "$ref": "#/definitions/session_end" },
+          { "$ref": "#/definitions/edit_block" },
+          { "$ref": "#/definitions/paste" },
+          { "$ref": "#/definitions/paste_link" },
+          { "$ref": "#/definitions/image_upload" },
+          { "$ref": "#/definitions/ai_interaction" },
+          { "$ref": "#/definitions/ai_suggestion" },
+          { "$ref": "#/definitions/checkpoint" },
+          { "$ref": "#/definitions/focus_change" },
+          { "$ref": "#/definitions/chat_interaction" }
+        ]
+      }
+    },
+    "_integrity": {
+      "type": "object",
+      "description": "Root integrity block for tamper detection. The chain_hash is the SHA-256 of all event _hash values concatenated in sequence, salted with the session_id. Any post-hoc modification to any event or its ordering will invalidate this hash.",
+      "properties": {
+        "algorithm": {
+          "type": "string",
+          "enum": ["sha256"],
+          "description": "Hashing algorithm used for the chain. Currently only sha256 is supported."
+        },
+        "chain_hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "The terminal hash of the event chain. Verifiable by replaying the hash chain across all events in order."
+        },
+        "event_count": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Total number of events recorded. Must match the length of the events array exactly. A mismatch indicates log truncation or insertion."
+        },
+        "note": {
+          "type": "string",
+          "description": "Optional human-readable note (e.g. 'Partial session — application closed unexpectedly')."
+        }
+      },
+      "required": ["algorithm", "chain_hash", "event_count"]
+    }
+  },
+  "required": ["version", "session_id", "start_time", "end_time", "content_source", "events", "_integrity"],
+  "definitions": {
+
+    "session_start": {
+      "type": "object",
+      "description": "Marks the beginning of a writing session. Must be the first event in the events array. For the hash chain, this event's _hash uses the session_id as its previous-hash input.",
+      "properties": {
+        "type": { "enum": ["session_start"] },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp of session open."
+        },
+        "_hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "SHA-256 hash of this event. The previous-hash input is the session_id (chain root)."
+        }
+      },
+      "required": ["type", "timestamp"]
+    },
+
+    "session_end": {
+      "type": "object",
+      "description": "Marks the end of a writing session. Must be the last event in the events array.",
+      "properties": {
+        "type": { "enum": ["session_end"] },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp of session close."
+        },
+        "_hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "SHA-256 hash of this event, chained from the preceding event's _hash."
+        }
+      },
+      "required": ["type", "timestamp"]
+    },
+
+    "edit_block": {
+      "type": "object",
+      "description": "Records a discrete edit to the document content. Implementations should aggregate rapid sequential keystrokes into a single block rather than recording per-keystroke. The source field identifies the origin of the content — note that 'paste' is NOT a valid source here; pasted content should generate a separate paste event, and this edit_block's source should reflect what is known about that content's origin.",
+      "properties": {
+        "type": { "enum": ["edit_block"] },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "source": {
+          "enum": ["human", "ai", "external", "unknown"],
+          "description": "Origin of the edited content. 'human': directly typed by the author. 'ai': content inserted by accepting an ai_interaction or ai_suggestion — the corresponding AI event must also be present. 'external': content that originated from outside the document. 'unknown': source cannot be determined even in principle. Use 'external' in preference to 'unknown' wherever it is clear the content did not originate from the author's own typing.\n\nIMPORTANT — relationship with the paste event: when a clipboard paste occurs, implementations MUST emit a separate paste event to capture clipboard metadata (char_count, content_preview, etc.) AND an edit_block with source 'external' to record the content change in the edit stream. The edit_block is not a substitute for the paste event; both are required. The 'external' source on an edit_block therefore means: this content came from outside the document, and a corresponding paste, paste_link, or image_upload event will be present at the same timestamp. If no such event was captured — e.g. for bulk imports, drag-and-drop, or other non-clipboard mechanisms — 'external' still applies but no paired event is expected."
+        },
+        "position_start": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Character offset of the start of the edited range within the document. Must be >= 0 and <= position_end."
+        },
+        "position_end": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Character offset of the end of the edited range. Must be >= position_start. For insertions at a point, position_end equals position_start."
+        },
+        "content_before": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Snapshot of the document text at this range before the edit. Truncated to 500 characters. May be empty string for pure insertions."
+        },
+        "content_after": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Snapshot of the document text at this range after the edit. Truncated to 500 characters. May be empty string for pure deletions."
+        },
+        "delta_words": {
+          "type": "integer",
+          "description": "Net change in word count caused by this edit. Negative values indicate net deletion; positive values indicate net addition. Zero is valid for edits that replace content without changing word count."
+        },
+        "_hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": ["type", "timestamp", "source", "position_start", "position_end"]
+    },
+
+    "paste": {
+      "type": "object",
+      "description": "Records a clipboard paste of text content into the document. For pasted URLs intended as citations or hyperlinks, use paste_link instead. For pasted image files, use image_upload instead. A paste event should be accompanied by a corresponding edit_block with source 'external' to record the content change in the edit stream.",
+      "properties": {
+        "type": { "enum": ["paste"] },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "source": {
+          "enum": ["external", "internal"],
+          "description": "Origin of the pasted text. 'external': copied from outside the current TWFF document (e.g. a web page, another application, or a different file). 'internal': copied from within the same document."
+        },
+        "char_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total number of characters in the pasted content."
+        },
+        "position_start": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Character offset in the document where the paste begins. Must be >= 0 and <= position_end."
+        },
+        "position_end": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Character offset in the document where the paste ends. Must be >= position_start."
+        },
+        "content_preview": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "First 100 characters of the pasted text, for audit and visualization purposes."
+        },
+        "_hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": ["type", "timestamp", "source", "char_count", "position_start", "position_end"]
+    },
+
+    "paste_link": {
+      "type": "object",
+      "description": "Records the insertion of a hyperlink or URL reference into the document. Covers both external web sources (citations, references) and internal TWFF container assets (e.g. a reference to an image in content/images/ or an entry in meta/references.bib). This event type is for the link metadata only — if the linked content was also pasted as text, record a separate paste event.",
+      "properties": {
+        "type": { "enum": ["paste_link"] },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri-reference",
+          "description": "The URL or relative container path being linked. When link_scope is 'external', this MUST be a fully qualified absolute URI (e.g. 'https://example.com/paper.pdf'). When link_scope is 'internal', this MUST be a relative path within the TWFF container (e.g. 'content/images/figure1.png' or 'meta/references.bib#ref-42'). The format 'uri-reference' is used rather than 'uri' precisely to accommodate these relative internal paths, which are valid URI references but not absolute URIs. Validators SHOULD enforce that internal links use relative paths and external links use absolute URIs, as JSON Schema cannot express this cross-field constraint natively."
+        },
+        "link_scope": {
+          "enum": ["external", "internal"],
+          "description": "Indicates whether this link points to an external web resource or to an asset within the TWFF container. 'internal' links MUST use a relative path in the url field."
+        },
+        "title": {
+          "type": "string",
+          "description": "Human-readable label for the link — e.g. the web page title for external sources, or the filename/caption for internal assets."
+        },
+        "position": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Character offset in the document where the link was inserted."
+        },
+        "_hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": ["type", "timestamp", "url", "position", "link_scope"]
+    },
+
+    "image_upload": {
+      "type": "object",
+      "description": "Records the insertion of an image or binary asset into the document. The file itself MUST be stored under content/images/ (or content/assets/) within the TWFF container. The filename recorded here must match the stored file.",
+      "properties": {
+        "type": { "enum": ["image_upload"] },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "filename": {
+          "type": "string",
+          "description": "Filename of the asset as stored in the TWFF container (e.g. 'figure1.png'). Must correspond to a file present in the container."
+        },
+        "file_type": {
+          "type": "string",
+          "description": "MIME type of the uploaded file (e.g. 'image/png', 'image/jpeg', 'image/svg+xml', 'application/pdf')."
+        },
+        "position": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Character offset in the document where the image was inserted."
+        },
+        "_hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": ["type", "timestamp", "filename", "file_type", "position"]
+    },
+
+    "ai_interaction": {
+      "type": "object",
+      "description": "Records a user-initiated AI assistant interaction — a prompt explicitly submitted by the author to a chat interface, rewrite tool, or inline command. Distinct from ai_suggestion, which covers passive autocomplete. Logging these events supports EU AI Act Article 50 transparency obligations for AI-generated content disclosure.",
+      "properties": {
+        "type": { "enum": ["ai_interaction"] },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "model": {
+          "type": "string",
+          "description": "Model identifier. Use a consistent provider/model naming convention where possible (e.g. 'openai/gpt-4o', 'anthropic/claude-sonnet-4-6', 'ollama/llama3', 'google/gemini-2.0-flash'). For local models accessed via Ollama or llamafile, record the local model name. This field supports cross-log analytics and EU AI Act Article 52 disclosure."
+        },
+        "model_version": {
+          "type": "string",
+          "description": "Specific model checkpoint or quantization identifier (e.g. 'gpt-4o-2024-11-20', 'llama3-8b-instruct-q4_K_M'). Optional but strongly recommended for audit reproducibility."
+        },
+        "context_window": {
+          "type": "string",
+          "maxLength": 300,
+          "description": "Excerpt of surrounding document text sent as context to the AI. Truncated to 300 characters. This field records document context only — not the full prompt text, which is not stored."
+        },
+        "output_preview": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "First 100 characters of the AI's output. Must not contain the full response. Required to confirm an output was produced."
+        },
+        "content_before": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Text at the affected document range before the AI output was applied. Used to enable diff rendering in visualizers."
+        },
+        "content_after": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Text at the affected document range after the AI output was applied. Used to enable diff rendering in visualizers."
+        },
+        "position_start": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Character offset in the document where the AI output was applied. Must be >= 0 and <= position_end."
+        },
+        "position_end": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Character offset of the end of the AI-affected range. Must be >= position_start. For insertions at a point, equals position_start."
+        },
+        "acceptance": {
+          "enum": ["fully_accepted", "partially_accepted", "modified", "rejected"],
+          "description": "How the author handled the AI output. 'fully_accepted': inserted as-is with no edits. 'partially_accepted': a portion was used, the rest discarded. 'modified': the output was used as a base but significantly rewritten by the author. 'rejected': the output was discarded entirely."
+        },
+        "ai_chars": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Count of characters from the AI output that were retained in the document (after any author modification). Should be 0 for 'rejected' interactions. Supports contribution-ratio calculations."
+        },
+        "_hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": ["type", "timestamp", "model", "output_preview", "position_start", "position_end", "acceptance"]
+    },
+
+    "ai_suggestion": {
+      "type": "object",
+      "description": "Records a passive AI inline suggestion or autocomplete completion (e.g. ghost text, tab-completion). Distinct from ai_interaction, which is user-initiated. The key distinction: ai_suggestion is triggered automatically by the system; ai_interaction is triggered explicitly by the author. Also supports EU AI Act Article 50 transparency logging.",
+      "properties": {
+        "type": { "enum": ["ai_suggestion"] },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "model": {
+          "type": "string",
+          "description": "Model identifier using provider/model convention (e.g. 'openai/gpt-4o', 'anthropic/claude-sonnet-4-6', 'ollama/llama3')."
+        },
+        "model_version": {
+          "type": "string",
+          "description": "Specific model checkpoint (e.g. 'llama3-8b-instruct-q4_K_M'). Optional but recommended."
+        },
+        "context_window": {
+          "type": "string",
+          "maxLength": 300,
+          "description": "Document context used to generate the suggestion. Truncated to 300 characters."
+        },
+        "output_preview": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "First 100 characters of the suggested text."
+        },
+        "content_before": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Text at the insertion point before the suggestion was applied."
+        },
+        "content_after": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Text at the insertion point after the suggestion was applied or dismissed."
+        },
+        "position_start": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Character offset where the suggestion was offered. Must be >= 0 and <= position_end."
+        },
+        "position_end": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Character offset of the end of the suggestion range. Must be >= position_start."
+        },
+        "acceptance": {
+          "enum": ["fully_accepted", "partially_accepted", "modified", "rejected"],
+          "description": "Author's response to the inline suggestion."
+        },
+        "_hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": ["type", "timestamp", "model", "output_preview", "position_start", "position_end", "acceptance"]
+    },
+
+    "checkpoint": {
+      "type": "object",
+      "description": "A periodic snapshot of document statistics for continuity verification and contribution analysis. At minimum, one of char_count_total or word_count_total MUST be present — a checkpoint with no counts provides no analytical value. Implementations should emit a checkpoint at regular intervals (e.g. every 5 minutes) and at session_end.",
+      "properties": {
+        "type": { "enum": ["checkpoint"] },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "char_count_total": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total character count of the full document at this point in time."
+        },
+        "word_count_total": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total word count of the full document at this point in time."
+        },
+        "position": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Cursor or caret position at the time of the checkpoint (character offset)."
+        },
+        "_hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": ["type", "timestamp"],
+      "anyOf": [
+        { "required": ["char_count_total"] },
+        { "required": ["word_count_total"] }
+      ]
+    },
+
+    "focus_change": {
+      "type": "object",
+      "description": "RESERVED — Planned for full specification in v0.3. Records when the author navigates away from the writing editor (e.g. switches browser tabs or application focus). Critical for timing integrity: without focus_change events, session duration cannot distinguish active writing time from idle time. Implementations MAY emit this event now using the fields below; the full specification including DPV mapping is forthcoming.",
+      "properties": {
+        "type": { "enum": ["focus_change"] },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of the focus-change event (either focus lost or focus regained — specify in direction)."
+        },
+        "direction": {
+          "enum": ["lost", "regained"],
+          "description": "Whether the editor lost focus (author navigated away) or regained focus (author returned)."
+        },
+        "duration_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Duration of the focus-away period in milliseconds. Only meaningful when direction is 'regained'."
+        },
+        "_hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": ["type", "timestamp"]
+    },
+
+    "chat_interaction": {
+      "type": "object",
+      "description": "RESERVED — Planned for full specification in v0.3. Records a multi-turn AI conversation session conducted during writing (e.g. a full chat thread in a side panel). The full conversation transcript SHOULD be stored separately in meta/chat-transcript.json within the TWFF container; this event records a pointer and summary only. Implementations MAY emit this event now using the fields below.",
+      "properties": {
+        "type": { "enum": ["chat_interaction"] },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of the start of the chat session."
+        },
+        "model": {
+          "type": "string",
+          "description": "Model identifier used in the chat session, using provider/model convention."
+        },
+        "message_count": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Total number of messages exchanged in the conversation (user + assistant turns combined)."
+        },
+        "message_preview": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "First 100 characters of the opening user message."
+        },
+        "source_file": {
+          "type": "string",
+          "description": "Relative path to the full chat transcript within the TWFF container (e.g. 'meta/chat-transcript.json'). The referenced file is OPTIONAL in the container but SHOULD be present when this event is recorded."
+        },
+        "_hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": ["type", "timestamp", "model"]
+    }
+
+  }
+}
