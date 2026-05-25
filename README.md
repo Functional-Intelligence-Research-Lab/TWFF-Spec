@@ -54,21 +54,22 @@ Packaging content and metadata together (modelled on EPUB) enables a range of di
 
 ```text
 twff/
-├── spec/                        ← The open standard
-│   ├── SPEC.md                  ← Normative specification (v0.2)
-│   ├── process-log.schema.json  ← JSON Schema for process-log.json (v0.2)
-│   ├── manifest.schema.json     ← JSON Schema for manifest.xml
-│   ├── validate_examples.py     ← Schema validation script
-│   └── v0.1/                    ← Frozen v0.1 release
+├── spec/                        # The open standard
+│   ├── SPEC.md                  # Normative specification (v0.2)
+│   ├── process-log.schema.json  # JSON Schema for process-log.json (v0.2)
+│   ├── manifest.schema.json     # JSON Schema for manifest.xml
+│   ├── validate_examples.py     # Schema validation script
+│   └── v0.1/                    # Frozen v0.1 release
+│   └── v0.2/                    # V0.2 archive
 │
-├── glassbox/                    ← Reference implementation (Soon to be archived as a separate repo)
+├── glassbox/                    # Reference implementation (Soon to be archived as a separate repo)
 │   ├── README.md
 │   ├── app.py
 │   ├── requirements.txt
 │   ├── components/
-│   │   ├── editor.py            ← NiceGUI WYSIWYG (UI only)
-│   │   ├── layout.py            ← Application shell
-│   │   └── process_log.py       ← TWFF session recording (framework-agnostic)
+│   │   ├── editor.py            # NiceGUI WYSIWYG (UI only)
+│   │   ├── layout.py            # Application shell
+│   │   └── process_log.py       # TWFF session recording (framework-agnostic)
 │   └── css/
 │       └── theme.css
 │
@@ -85,8 +86,9 @@ Glass Box is one implementation of the standard. They version independently. Fut
 
 ## Specification Overview
 
-→ Full specification (v0.2): [`spec/SPEC.md`](./spec/SPEC.md)
-→ Frozen v0.1 release: [`spec/v0.1/README.md`](./spec/v0.1/README.md)
+Full specification (v0.2): [`spec/SPEC.md`](./spec/SPEC.md)
+
+Frozen v0.1 release: [`spec/v0.1/README.md`](./spec/v0.1/README.md)
 
 ### Container Structure
 
