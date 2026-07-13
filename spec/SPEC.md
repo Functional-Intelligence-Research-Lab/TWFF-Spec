@@ -187,6 +187,8 @@ records a per-keystroke timeline or raw keystroke content, regardless of `source
 | `position_end` | integer | REQUIRED | Character offset of edit end. `>= position_start`. |
 | `content_before` | string | OPTIONAL | Document text at this range before the edit, truncated to 500 characters. |
 | `content_after` | string | OPTIONAL | Document text at this range after the edit, truncated to 500 characters. |
+| `content_before_length` | integer | OPTIONAL | True length of `content_before` before truncation. See §6.1. |
+| `content_after_length` | integer | OPTIONAL | True length of `content_after` before truncation. See §6.1. |
 | `delta_words` | integer | OPTIONAL | Net word-count change (negative = net deletion). |
 
 `source` values: `human` (directly typed), `ai` (content inserted by accepting an
@@ -246,6 +248,8 @@ autocomplete). Supports EU AI Act Article 50/52 transparency disclosure.
 | `output_preview` | string | REQUIRED | First 100 characters of the AI's output. MUST NOT contain the full response. |
 | `content_before` | string | OPTIONAL | Text at the affected range before the AI output was applied, truncated to 500 characters — enables diff rendering. |
 | `content_after` | string | OPTIONAL | Text at the affected range after the AI output was applied, truncated to 500 characters. |
+| `content_before_length` | integer | OPTIONAL | True length of `content_before` before truncation. See §6.1. |
+| `content_after_length` | integer | OPTIONAL | True length of `content_after` before truncation. See §6.1. |
 | `position_start` | integer | REQUIRED | Character offset where the output was applied. |
 | `position_end` | integer | REQUIRED | Character offset of the end of the affected range. |
 | `acceptance` | string | REQUIRED | See acceptance values below. |
@@ -269,6 +273,8 @@ triggered automatically by the system rather than explicitly requested. Also sup
 | `output_preview` | string | REQUIRED | First 100 characters of the suggested text. |
 | `content_before` | string | OPTIONAL | Text at the insertion point before the suggestion, truncated to 500 characters. |
 | `content_after` | string | OPTIONAL | Text at the insertion point after the suggestion was applied or dismissed, truncated to 500 characters. |
+| `content_before_length` | integer | OPTIONAL | True length of `content_before` before truncation. See §6.1. |
+| `content_after_length` | integer | OPTIONAL | True length of `content_after` before truncation. See §6.1. |
 | `position_start` | integer | REQUIRED | Character offset where the suggestion was offered. |
 | `position_end` | integer | REQUIRED | Character offset of the end of the suggestion range. |
 | `acceptance` | string | REQUIRED | Author's response — same values as `ai_interaction` above. |
@@ -403,12 +409,12 @@ The `head_hash` is the `_hash` value of the final event in the `events` array
 3. If they match: log is intact. If not: the log has been modified.
 
 This is exactly what the reference verifier checks (`verify_process_log()` reads
-`_integrity.head_hash` and compares it against the recomputed chain). **Known gap**:
-`process-log.schema.json`'s `_integrity` definition currently requires different field names
-(`chain_hash`, `event_count`, `algorithm: "sha256"`) that neither this document nor the
-reference verifier use — the schema file needs a follow-up fix to match the field names
-actually produced and checked (`head_hash`, `chain_length`, `algorithm: "SHA-256-CHAIN"`),
-not the reverse. Flagged in `firl-infra/READINESS.md`, not fixed in this pass.
+`_integrity.head_hash` and compares it against the recomputed chain), and now what
+`process-log.schema.json` requires (`head_hash`, `chain_length`,
+`algorithm: "SHA-256-CHAIN"`) and what Colophon's live export path
+(`ProcessLog.export()` in `lib/process-log.js`, via the shared `computeEventHash()`
+reference implementation) actually produces — all three now agree on the same field
+names and algorithm.
 
 ### 5.4 Reference Implementation
 
@@ -473,6 +479,21 @@ The relationship between `process-log.json` and `META-INF/signatures.xml` is:
   These caps exist to support real analysis (diff rendering, contribution-ratio and
   `similarity_score` calculations, §4.4) while still stopping well short of storing a full
   document or a full AI response verbatim. No field is unbounded.
+
+  **On the cap vs. drift-correction tradeoff.** A 500-character cap on `content_before`/
+  `content_after` is in real tension with a viewer's ability to correctly place a long
+  insertion in the final document (drift correction): the shorter the stored snapshot, the
+  weaker a signal it is for locating exactly where that text landed once later edits have
+  shifted everything around it. `content_before_length`/`content_after_length` (§4.3) resolve
+  the *classification* half of this tradeoff for free — they carry only an integer, not text,
+  so they aren't subject to the privacy cap at all, and let a consumer correctly judge an
+  insertion's true size and detect position-offset bugs regardless of how long the original
+  text was. They do **not** resolve the *location* half: for the portion of an insertion
+  beyond 500 characters, a consumer has no text to fuzzy-search with, so match confidence
+  degrades gracefully for that portion (a placement that's approximately right, not silently
+  wrong) rather than failing outright. That is a real, bounded, and now-documented cost of
+  respecting this cap — not a defect to be engineered away, since doing so would mean storing
+  more raw text than §6.1 permits.
 - Personally identifiable information beyond `user_id`.
 - Screen recordings, mouse movements, keystroke-timing biometric profiles, or any
   cross-application/cross-tab observation. A within-document typing-cadence aggregate (e.g.
@@ -486,6 +507,23 @@ The relationship between `process-log.json` and `META-INF/signatures.xml` is:
 - SHOULD be generated locally by the author (not assigned by a server)
 - SHOULD be rotatable between sessions
 - MUST NOT be tied to any account, email address, or device identifier
+
+**On longitudinal research.** A rotating, session-scoped `user_id` (Colophon: a fresh
+`anon-` ID generated once per recording session, never persisted beyond it) means a `.twff`
+file's own `user_id` field is deliberately *not* a stable cross-session identity, and
+therefore cannot by itself support a longitudinal study design (e.g. "how does this
+student's AI use change over a semester"). That is by design, not a gap: this spec's job is
+to describe what a single portable file contains, and a file that could be silently linked
+to every other file the same person ever produced would itself be the surveillance risk
+§6.1 exists to prevent.
+
+Longitudinal linkage — when a study genuinely needs it — belongs one layer up, at whatever
+authenticated, consent-gated system ingests `.twff` files for a study, not inside the file
+format. That system already has (or should have) informed consent scoped to that specific
+study, and can maintain its own study-scoped pseudonym mapping a real account to a stable
+per-study identifier, independent of and unlinkable to any given file's own rotating
+`user_id`. Producers and consumers of this spec MUST NOT treat `user_id` as a substitute for
+that consent-gated layer.
 
 ### 6.3 Data Sovereignty
 

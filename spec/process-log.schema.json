@@ -54,29 +54,34 @@
     },
     "_integrity": {
       "type": "object",
-      "description": "Root integrity block for tamper detection. The chain_hash is the SHA-256 of all event _hash values concatenated in sequence, salted with the session_id. Any post-hoc modification to any event or its ordering will invalidate this hash.",
+      "description": "Root integrity block for tamper detection (spec §5.2/§5.3). Each event carries its own chained _hash; head_hash is the last event's _hash, so replaying the chain across all events in order and comparing against head_hash detects any post-hoc modification, reordering, insertion, or deletion.",
       "properties": {
         "algorithm": {
           "type": "string",
-          "enum": ["sha256"],
-          "description": "Hashing algorithm used for the chain. Currently only sha256 is supported."
+          "enum": ["SHA-256-CHAIN"],
+          "description": "Hashing scheme used for the chain. Currently only SHA-256-CHAIN (per-event, spec §5.2) is supported."
         },
-        "chain_hash": {
-          "type": "string",
-          "pattern": "^[a-f0-9]{64}$",
-          "description": "The terminal hash of the event chain. Verifiable by replaying the hash chain across all events in order."
-        },
-        "event_count": {
+        "chain_length": {
           "type": "integer",
           "minimum": 1,
           "description": "Total number of events recorded. Must match the length of the events array exactly. A mismatch indicates log truncation or insertion."
+        },
+        "head_hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "The last event's chained _hash — the terminal hash of the event chain. Verifiable by replaying the hash chain across all events in order (spec §5.2)."
+        },
+        "session_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Must match the top-level session_id. Included in the block so the chain's session-scoping is self-contained without cross-referencing the parent object."
         },
         "note": {
           "type": "string",
           "description": "Optional human-readable note (e.g. 'Partial session — application closed unexpectedly')."
         }
       },
-      "required": ["algorithm", "chain_hash", "event_count"]
+      "required": ["algorithm", "chain_length", "head_hash", "session_id"]
     }
   },
   "required": ["version", "session_id", "start_time", "end_time", "content_source", "events", "_integrity"],
@@ -152,6 +157,16 @@
           "type": "string",
           "maxLength": 500,
           "description": "Snapshot of the document text at this range after the edit. Truncated to 500 characters. May be empty string for pure deletions."
+        },
+        "content_before_length": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "OPTIONAL. True length of content_before before truncation, in characters. Lets consumers classify position reliability and run drift correction accurately even when the edit is longer than the 500-character content cap — a plain integer carries no content, so it isn't subject to the cap itself. Fuzzy-match *location* confidence for the truncated portion of the text is still bounded by content_before's actual 500-character length; this field doesn't recover the missing text, only its true size."
+        },
+        "content_after_length": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "OPTIONAL. True length of content_after before truncation — see content_before_length."
         },
         "delta_words": {
           "type": "integer",
@@ -308,6 +323,16 @@
           "maxLength": 500,
           "description": "Text at the affected document range after the AI output was applied. Used to enable diff rendering in visualizers."
         },
+        "content_before_length": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "OPTIONAL. True length of content_before before truncation, in characters. Lets consumers classify position reliability and run drift correction accurately even when the AI output is longer than the 500-character content cap. Fuzzy-match *location* confidence for the truncated portion of the text is still bounded by content_before's actual 500-character length; this field doesn't recover the missing text, only its true size."
+        },
+        "content_after_length": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "OPTIONAL. True length of content_after before truncation — see content_before_length."
+        },
         "position_start": {
           "type": "integer",
           "minimum": 0,
@@ -377,6 +402,16 @@
           "type": "string",
           "maxLength": 500,
           "description": "Text at the insertion point after the suggestion was applied or dismissed."
+        },
+        "content_before_length": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "OPTIONAL. True length of content_before before truncation, in characters. Lets consumers classify position reliability and run drift correction accurately even when the suggestion is longer than the 500-character content cap. Fuzzy-match *location* confidence for the truncated portion of the text is still bounded by content_before's actual 500-character length; this field doesn't recover the missing text, only its true size."
+        },
+        "content_after_length": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "OPTIONAL. True length of content_after before truncation — see content_before_length."
         },
         "position_start": {
           "type": "integer",
