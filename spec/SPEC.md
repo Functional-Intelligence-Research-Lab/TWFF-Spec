@@ -1,7 +1,7 @@
 # TWFF Specification
 
-**Version:** 0.1.0
-**Status:** Draft
+**Version:** 0.2.0
+**Status:** Current
 **Published:** 2026-02-16
 **Authors:** Functional Intelligence Research Lab (FIRL)
 **License:** Apache-2.0 (see [LICENSE](./LICENSE))
@@ -16,9 +16,25 @@ The Tracked Writing File Format (TWFF) is an open container format for packaging
 
 ## Status of This Document
 
-This document is a **Draft Specification**.
+This document describes **TWFF v0.2**, the current specification. **v0.1 is deprecated** — it
+described a bulk-hash integrity model (§5.5) and a smaller event-type set that no longer
+match what implementers (including the reference Colophon extension) actually produce or
+validate against. This document has been rewritten to match `spec/process-log.schema.json`
+(the machine-readable v0.2 schema) field-for-field; the two should no longer be read as
+separate, conflicting sources.
 
-The schema and event types defined here constitute the normative v0.1 release. Breaking changes will be issued under a new version number. Non-breaking additions (new optional fields, new event types) may be added with a minor version increment.
+### Versioning roadmap
+
+- **v0.1** — deprecated. Bulk single-hash integrity (§5.5), smaller event set. No longer
+  described normatively by this document.
+- **v0.2** — current (this document). Per-event chained hash integrity (§5), the full event
+  set below, including `paste_link`, `image_upload`, and `ai_suggestion` (new since v0.1).
+- **v0.3** — planned. Will adopt terms and vocabulary from the W3C Data Privacy Vocabularies
+  Community Group (DPVCG) — e.g. mapping `user_id` to `dpv:pseudonymousID` — and will
+  formally specify `chat_interaction` and `focus_change`, both marked RESERVED below.
+
+Breaking changes are issued under a new major/minor version number. Non-breaking additions
+(new optional fields, new event types) may be added with a patch increment.
 
 Feedback and proposals: open an issue at [github.com/Functional-Intelligence-Research-Lab/twff](https://github.com/Functional-Intelligence-Research-Lab/twff)
 
@@ -127,14 +143,14 @@ The `meta/process-log.json` file MUST be valid JSON conforming to the following 
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `version` | string | REQUIRED | Spec version, e.g. `"0.1.0"` |
-| `session_id` | string (UUID) | REQUIRED | UUID v4 identifying this session |
-| `user_id` | string | REQUIRED | Anonymous, user-generated identifier. MUST NOT contain PII. |
+| `version` | string | REQUIRED | Spec version — MUST be exactly `"0.2.0"` |
+| `session_id` | string (UUID) | REQUIRED | UUID v4 identifying this session. Used as the hash-chain salt (§5.2). |
+| `user_id` | string | OPTIONAL | Anonymous, rotatable pseudonymous identifier (e.g. `"anon-7f3a2c1b9d4e"`). MUST NOT contain PII. Platform integrations MAY populate this with a hashed/pseudonymous account ID with consent. Intended to map to `dpv:pseudonymousID` in v0.3. |
 | `start_time` | string (ISO 8601) | REQUIRED | Session start timestamp in UTC, e.g. `"2026-02-16T09:00:00Z"` |
 | `end_time` | string (ISO 8601) | REQUIRED | Session end timestamp in UTC |
 | `content_source` | string | REQUIRED | Path to primary content file within container, e.g. `"content/document.xhtml"` |
-| `events` | array | REQUIRED | Ordered array of event objects (see §4.2) |
-| `_integrity` | object | RECOMMENDED | Integrity hash block (see §5) |
+| `events` | array | REQUIRED | Ordered array of event objects (see §4.2, §4.3) |
+| `_integrity` | object | REQUIRED | Root integrity block (see §5.3) |
 
 ### 4.2 Event Object
 
@@ -151,94 +167,159 @@ Events MUST be ordered chronologically by `timestamp`.
 ### 4.3 Event Types
 
 #### `session_start`
-Marks the beginning of a writing session. MUST be the first event in `events`.
+Marks the beginning of a writing session. MUST be the first event in `events`. For the hash
+chain, this event's `_hash` uses `session_id` as its previous-hash input (§5.2).
 `meta`: `{}`
 
 #### `session_end`
 Marks the end of a writing session. MUST be the last event in `events`.
 `meta`: `{}`
 
-#### `edit`
-Records a human typing or deletion action.
+#### `edit_block`
+Records a discrete edit to the document content. Implementations SHOULD aggregate rapid
+sequential keystrokes into a single block rather than recording per-keystroke — TWFF never
+records a per-keystroke timeline or raw keystroke content, regardless of `source`.
 
 | `meta` field | Type | Required | Description |
 |---|---|---|---|
-| `position_start` | integer | REQUIRED | Character offset of edit start in content file |
-| `position_end` | integer | REQUIRED | Character offset of edit end |
-| `source` | string | REQUIRED | Always `"human"` for this event type |
+| `source` | string | REQUIRED | `human` \| `ai` \| `external` \| `unknown` — origin of the edited content. See below. |
+| `position_start` | integer | REQUIRED | Character offset of edit start. `>= 0`, `<= position_end`. |
+| `position_end` | integer | REQUIRED | Character offset of edit end. `>= position_start`. |
+| `content_before` | string | OPTIONAL | Document text at this range before the edit, truncated to 500 characters. |
+| `content_after` | string | OPTIONAL | Document text at this range after the edit, truncated to 500 characters. |
+| `delta_words` | integer | OPTIONAL | Net word-count change (negative = net deletion). |
 
-Note: TWFF does NOT record keystroke content, only character counts and positions.
+`source` values: `human` (directly typed), `ai` (content inserted by accepting an
+`ai_interaction`/`ai_suggestion` — the corresponding AI event MUST also be present),
+`external` (originated outside the document — see the paste relationship below), `unknown`
+(cannot be determined even in principle; prefer `external` wherever it's clear the content
+didn't come from the author's own typing).
+
+**Relationship with `paste`**: a clipboard paste MUST emit both a `paste` event (clipboard
+metadata) AND an `edit_block` with `source: "external"` (the content change itself) at the
+same timestamp — the `edit_block` is not a substitute for `paste`.
 
 #### `paste`
-Records text pasted from an external source.
+Records text pasted from an external or internal source. For pasted URLs used as citations,
+use `paste_link` instead. For pasted image files, use `image_upload` instead.
 
 | `meta` field | Type | Required | Description |
 |---|---|---|---|
-| `char_count` | integer | REQUIRED | Number of characters pasted |
-| `source` | string | REQUIRED | `"external"` for clipboard paste; `"ai"` if from an AI tool |
-| `position_start` | integer | REQUIRED | Character offset where paste was inserted |
-| `position_end` | integer | REQUIRED | Character offset of end of pasted content |
-| `output_preview` | string | OPTIONAL | First 100 characters of pasted content |
+| `source` | string | REQUIRED | `external` (copied from outside this TWFF document) or `internal` (copied from within it). |
+| `char_count` | integer | REQUIRED | Total characters pasted. |
+| `position_start` | integer | REQUIRED | Character offset where the paste begins. |
+| `position_end` | integer | REQUIRED | Character offset where the paste ends. |
+| `content_preview` | string | OPTIONAL | First 100 characters of the pasted text. |
+
+#### `paste_link`
+Records the insertion of a hyperlink or URL reference — external web citations, or internal
+references to another asset in the container (e.g. `content/images/figure1.png`). Link
+metadata only; if the linked content was also pasted as text, record a separate `paste` event.
+
+| `meta` field | Type | Required | Description |
+|---|---|---|---|
+| `url` | string | REQUIRED | Absolute URI for external links; a relative container path for internal links. |
+| `link_scope` | string | REQUIRED | `external` or `internal`. |
+| `title` | string | OPTIONAL | Human-readable label — the page title, or the filename/caption for internal assets. |
+| `position` | integer | REQUIRED | Character offset where the link was inserted. |
+
+#### `image_upload`
+Records the insertion of an image or binary asset. The file itself MUST be stored under
+`content/images/` (or `content/assets/`) within the container.
+
+| `meta` field | Type | Required | Description |
+|---|---|---|---|
+| `filename` | string | REQUIRED | Filename as stored in the container — MUST correspond to a file actually present. |
+| `file_type` | string | REQUIRED | MIME type, e.g. `image/png`, `application/pdf`. |
+| `position` | integer | REQUIRED | Character offset where the image was inserted. |
 
 #### `ai_interaction`
-Records an AI assistant invocation.
+Records a **user-initiated** AI assistant interaction — a prompt explicitly submitted to a
+chat interface, rewrite tool, or inline command. Distinct from `ai_suggestion` below (passive
+autocomplete). Supports EU AI Act Article 50/52 transparency disclosure.
 
 | `meta` field | Type | Required | Description |
 |---|---|---|---|
-| `interaction_type` | string | REQUIRED | See interaction type values below |
-| `model` | string | REQUIRED | Model identifier, e.g. `"gpt-4o"`, `"claude-sonnet-4-6"` |
-| `input_preview` | string | OPTIONAL | First 100 characters of the prompt |
-| `output_preview` | string | OPTIONAL | First 50 characters of the AI output |
-| `output_length` | integer | RECOMMENDED | Character count of AI output |
-| `position_start` | integer | RECOMMENDED | Character offset where output was inserted |
-| `position_end` | integer | RECOMMENDED | Character offset of end of inserted output |
-| `acceptance` | string | RECOMMENDED | See acceptance values below |
+| `model` | string | REQUIRED | Model identifier, `provider/model` convention recommended (e.g. `"anthropic/claude-sonnet-4-6"`, `"ollama/llama3"`). |
+| `model_version` | string | OPTIONAL | Specific checkpoint/quantization (e.g. `"llama3-8b-instruct-q4_K_M"`) — recommended for audit reproducibility. |
+| `context_window` | string | OPTIONAL | Surrounding document text sent as context, truncated to 300 characters. Document context only — the full prompt is never stored. |
+| `output_preview` | string | REQUIRED | First 100 characters of the AI's output. MUST NOT contain the full response. |
+| `content_before` | string | OPTIONAL | Text at the affected range before the AI output was applied, truncated to 500 characters — enables diff rendering. |
+| `content_after` | string | OPTIONAL | Text at the affected range after the AI output was applied, truncated to 500 characters. |
+| `position_start` | integer | REQUIRED | Character offset where the output was applied. |
+| `position_end` | integer | REQUIRED | Character offset of the end of the affected range. |
+| `acceptance` | string | REQUIRED | See acceptance values below. |
+| `ai_chars` | integer | OPTIONAL | Characters from the AI output retained in the document after any author modification. `0` for `rejected`. Supports contribution-ratio calculations. |
+| `similarity_score` | number | OPTIONAL | `0.0`–`1.0`. How much of the AI's suggested wording survived into the kept text — describes engagement (heavy revision vs. verbatim use), not a judgment. See §4.4. |
 
-**`interaction_type` values:**
+**`acceptance` values:** `fully_accepted` (used as-is), `partially_accepted` (some used, some
+discarded), `modified` (used as a base but significantly rewritten), `rejected` (discarded
+entirely).
 
-| Value | Description |
-|---|---|
-| `brainstorm` | AI generated ideas or outline |
-| `draft` | AI wrote a full passage |
-| `paraphrase` | AI rewrote existing text |
-| `summarize` | AI summarized content |
-| `expand` | AI expanded a short phrase |
-| `continue` | AI continued from cursor |
-| `completion` | Inline tab-completion |
-
-**`acceptance` values:**
-
-| Value | Description |
-|---|---|
-| `fully_accepted` | All output used as-is |
-| `partially_accepted` | Some output used, some discarded |
-| `modified` | Output used but significantly rewritten |
-| `rejected` | Output discarded entirely |
-
-#### `chat_interaction`
-Records a multi-turn AI conversation (e.g. asking for feedback on a draft).
+#### `ai_suggestion`
+Records a **passive** AI inline suggestion or autocomplete (ghost text, tab-completion) —
+triggered automatically by the system rather than explicitly requested. Also supports Article
+50 transparency logging.
 
 | `meta` field | Type | Required | Description |
 |---|---|---|---|
-| `message_count` | integer | REQUIRED | Number of messages in the exchange |
-| `message_preview` | string | OPTIONAL | First 100 characters of the opening message |
-| `source_file` | string | OPTIONAL | Path to `chat-transcript.json` within the container |
+| `model` | string | REQUIRED | Model identifier, `provider/model` convention. |
+| `model_version` | string | OPTIONAL | Specific checkpoint, as above. |
+| `context_window` | string | OPTIONAL | Document context used to generate the suggestion, truncated to 300 characters. |
+| `output_preview` | string | REQUIRED | First 100 characters of the suggested text. |
+| `content_before` | string | OPTIONAL | Text at the insertion point before the suggestion, truncated to 500 characters. |
+| `content_after` | string | OPTIONAL | Text at the insertion point after the suggestion was applied or dismissed, truncated to 500 characters. |
+| `position_start` | integer | REQUIRED | Character offset where the suggestion was offered. |
+| `position_end` | integer | REQUIRED | Character offset of the end of the suggestion range. |
+| `acceptance` | string | REQUIRED | Author's response — same values as `ai_interaction` above. |
+| `similarity_score` | number | OPTIONAL | Same meaning as on `ai_interaction` — see §4.4. |
 
-#### `focus_change`
-Records the author navigating away from the editor window.
+#### `chat_interaction` *(RESERVED — full specification planned for v0.3)*
+Records a multi-turn AI conversation conducted during writing (e.g. a side-panel chat
+thread). The full transcript SHOULD be stored separately in `meta/chat-transcript.json`
+within the container; this event records a pointer and summary only. Implementations MAY
+emit this event now using the fields below.
 
 | `meta` field | Type | Required | Description |
 |---|---|---|---|
-| `duration_ms` | integer | REQUIRED | Duration of focus loss in milliseconds |
+| `model` | string | REQUIRED | Model identifier used in the chat session. |
+| `message_count` | integer | REQUIRED | Total messages exchanged (user + assistant turns). |
+| `message_preview` | string | OPTIONAL | First 100 characters of the opening message. |
+| `source_file` | string | OPTIONAL | Relative path to the full transcript within the container. |
+
+#### `focus_change` *(RESERVED — full specification planned for v0.3)*
+Records the author navigating away from (or back to) the editor window. Without this event,
+session duration cannot distinguish active writing time from idle time. Implementations MAY
+emit this event now using the fields below.
+
+| `meta` field | Type | Required | Description |
+|---|---|---|---|
+| `direction` | string | REQUIRED | `lost` (navigated away) or `regained` (returned). |
+| `duration_ms` | integer | OPTIONAL | Duration of the focus-away period. Only meaningful when `direction` is `regained`. |
 
 #### `checkpoint`
-Records a periodic auto-save snapshot. Implementers SHOULD emit checkpoints at regular intervals (recommended: every 30–60 seconds of active editing).
+Records a periodic snapshot of document statistics. Implementers SHOULD emit checkpoints at
+regular intervals (recommended: every 5 minutes of active editing) and at `session_end`. At
+least one of `char_count_total` or `word_count_total` MUST be present.
 
 | `meta` field | Type | Required | Description |
 |---|---|---|---|
-| `char_count_total` | integer | REQUIRED | Total character count at checkpoint |
-| `word_count_total` | integer | RECOMMENDED | Total word count at checkpoint |
-| `position` | integer | OPTIONAL | Approximate cursor position |
+| `char_count_total` | integer | See above | Total character count at checkpoint. |
+| `word_count_total` | integer | See above | Total word count at checkpoint. |
+| `position` | integer | OPTIONAL | Approximate cursor position. |
+
+### 4.4 `similarity_score` — measuring engagement, not verdict
+
+A non-breaking addition to `ai_interaction`/`ai_suggestion`. A `0.0`–`1.0`
+score describing how much of an AI suggestion's wording survived, unchanged, into the text
+the author actually kept. It exists alongside — never in place of — the discrete `acceptance`
+bucket above, and is intentionally *not* exposed as a per-suggestion judgment anywhere in the
+reference implementation's UI: it is meant to be read in aggregate (e.g. "average similarity
+score across a case study's accepted suggestions"), as one description of engagement pattern
+— heavy revision, partial use, or verbatim acceptance — not as a score attached to any one
+person's one suggestion. Implementers SHOULD compute it from data already captured
+(`content_before`/`content_after`, or the full pre-truncation text at capture time) rather
+than adding new instrumentation to obtain it.
 
 ---
 
@@ -292,12 +373,17 @@ Where:
 |---------|--------|-------------|-------------|
 | `_hash` | string | RECOMMENDED | Hex SHA-256 per-event chain hash (see §5.2) |
 
+This is exactly what the reference verifier implements — see
+[`spec/verification/verify_process_log.py`](./verification/verify_process_log.py)'s
+`compute_event_hash()`, which hashes the full event object (minus `_hash`) chained with
+`previous_hash` and `session_id`, matching the pseudocode above field-for-field.
+
 The `_hash` field MUST NOT be included in the `event_payload` during hash
 computation (it is the output, not an input).
 
 ### 5.3 Top-Level `_integrity` Block
 
-Conformant producers SHOULD include a `_integrity` block at the top level of
+Conformant producers MUST include a `_integrity` block at the top level of
 `process-log.json`:
 
 ```json
@@ -316,9 +402,18 @@ The `head_hash` is the `_hash` value of the final event in the `events` array
 2. Compare the final computed hash against `_integrity.head_hash`
 3. If they match: log is intact. If not: the log has been modified.
 
+This is exactly what the reference verifier checks (`verify_process_log()` reads
+`_integrity.head_hash` and compares it against the recomputed chain). **Known gap**:
+`process-log.schema.json`'s `_integrity` definition currently requires different field names
+(`chain_hash`, `event_count`, `algorithm: "sha256"`) that neither this document nor the
+reference verifier use — the schema file needs a follow-up fix to match the field names
+actually produced and checked (`head_hash`, `chain_length`, `algorithm: "SHA-256-CHAIN"`),
+not the reverse. Flagged in `firl-infra/READINESS.md`, not fixed in this pass.
+
 ### 5.4 Reference Implementation
 
-see [`spec/verification/verify.py`](./verification/verify.py) for a reference implementation of the verification logic.
+See [`spec/verification/verify_process_log.py`](./verification/verify_process_log.py) for the
+reference implementation of the verification logic described above.
 
 ### 5.5 Migration from v0.1 Bulk Hash
 
@@ -368,10 +463,22 @@ The relationship between `process-log.json` and `META-INF/signatures.xml` is:
 
 ### 6.1 What MUST NOT be stored
 
-- Individual keystroke content (only aggregated character counts and positions)
-- Raw prompts or full AI responses (only metadata previews, MUST be truncated to ≤100 characters)
-- Personally identifiable information beyond the `user_id`
-- Screen recordings, mouse movements, or biometric data
+- **Individual keystroke content or per-keystroke timing.** Implementations MUST aggregate
+  rapid sequential keystrokes into `edit_block` events (§4.3) rather than logging each
+  keystroke; no field anywhere in this schema carries a keystroke-by-keystroke record.
+- **Raw AI prompts, or full AI responses beyond the bounded content fields defined in §4.3.**
+  Specifically: `output_preview`/`content_preview` MUST be truncated to ≤100 characters;
+  `context_window` MUST be truncated to ≤300 characters; `content_before`/`content_after`
+  (on `edit_block`, `ai_interaction`, `ai_suggestion`) MUST be truncated to ≤500 characters.
+  These caps exist to support real analysis (diff rendering, contribution-ratio and
+  `similarity_score` calculations, §4.4) while still stopping well short of storing a full
+  document or a full AI response verbatim. No field is unbounded.
+- Personally identifiable information beyond `user_id`.
+- Screen recordings, mouse movements, keystroke-timing biometric profiles, or any
+  cross-application/cross-tab observation. A within-document typing-cadence aggregate (e.g.
+  characters-per-minute over an edit burst) is permitted as a coarse, session-scoped signal —
+  it MUST NOT be combined with a non-rotating identifier to build a profile of an individual
+  across sessions (see §6.2's rotation requirement).
 
 ### 6.2 `user_id` Requirements
 
@@ -395,7 +502,7 @@ Implementations MAY provide visualisation of the composition process by:
 3. Wrapping the range in a `<span>` with appropriate `class` and `data-tooltip` attributes
 4. Rendering the annotated document with a legend
 
-Reference CSS classes (used in Glass Box):
+Reference CSS classes (used in Colophon):
 
 | Annotation | CSS Class | Colour |
 |---|---|---|
@@ -419,7 +526,7 @@ A **conformant producer** MUST:
 A **conformant consumer** MUST:
 - Accept any container produced by a conformant producer
 - Validate `process-log.json` against the schema before processing
-- Verify the `_integrity` hash if present and report any mismatch
+- Verify the `_integrity.head_hash` against the recomputed chain (§5.3) and report any mismatch
 
 ---
 

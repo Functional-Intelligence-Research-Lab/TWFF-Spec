@@ -327,6 +327,12 @@
           "minimum": 0,
           "description": "Count of characters from the AI output that were retained in the document (after any author modification). Should be 0 for 'rejected' interactions. Supports contribution-ratio calculations."
         },
+        "similarity_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "How much of the AI's suggested wording survived, unchanged, into the text the author actually kept — 0.0 (nothing survived) to 1.0 (used verbatim). Describes engagement (heavy revision, partial use, verbatim acceptance), not a judgment. Exists alongside acceptance, never in place of it. Implementers should compute this from data already captured (content_before/content_after, or the full pre-truncation text at capture time) rather than adding new instrumentation."
+        },
         "_hash": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$"
@@ -385,6 +391,12 @@
         "acceptance": {
           "enum": ["fully_accepted", "partially_accepted", "modified", "rejected"],
           "description": "Author's response to the inline suggestion."
+        },
+        "similarity_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Same meaning as on ai_interaction — how much of the suggested wording survived into the kept text. See that definition for full description."
         },
         "_hash": {
           "type": "string",
