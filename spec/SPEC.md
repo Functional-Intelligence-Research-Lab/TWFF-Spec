@@ -255,6 +255,7 @@ autocomplete). Supports EU AI Act Article 50/52 transparency disclosure.
 | `acceptance` | string | REQUIRED | See acceptance values below. |
 | `ai_chars` | integer | OPTIONAL | Characters from the AI output retained in the document after any author modification. `0` for `rejected`. Supports contribution-ratio calculations. |
 | `similarity_score` | number | OPTIONAL | `0.0`–`1.0`. How much of the AI's suggested wording survived into the kept text — describes engagement (heavy revision vs. verbatim use), not a judgment. See §4.4. |
+| `interaction_subtype` | string | OPTIONAL | Which built-in quick action, if any, produced this interaction: `paraphrase`, `grammar`, `brainstorm`, or `other` (a free-form prompt not tied to a quick action). Absent for producers that don't yet distinguish quick-action types. |
 
 **`acceptance` values:** `fully_accepted` (used as-is), `partially_accepted` (some used, some
 discarded), `modified` (used as a base but significantly rewritten), `rejected` (discarded
