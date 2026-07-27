@@ -455,14 +455,19 @@ A future version will support:
 
 This will allow a TWFF consumer to:
 
-1. Verify the hash chain (tamper detection — no key required)
-2. Verify the digital signature (authorship proof — requires author's public key)
+1. Verify the hash chain (tamper detection, no key required)
+2. Verify the digital signature (authorship proof, requires the author's public key)
 
 The relationship between `process-log.json` and `META-INF/signatures.xml` is:
 
 - `process-log.json` carries the hash chain (`_hash` per event + `_integrity.head_hash`)
 - `signatures.xml` signs the `head_hash` with a private key
 - Verification: hash chain → head_hash → digital signature verification
+
+No schema exists yet for `signatures.xml`, in XSD or any other format. It stays unformalized
+until this feature is actually built; writing a validation schema for a design that's still a
+sketch would claim more certainty than the design has earned. `manifest.xml`, by contrast, is
+current and in use, and has a real schema at `spec/manifest.xsd`.
 
 ---
 

@@ -1,85 +1,138 @@
-# Glassbox Editor
+# Glass Box: Reference Implementation
 
-<div align="center">
-  <img src="glassbox_logo.png" width="10%" alt="Visualization of a sample TWFF process log" />
-  <br/><br/>
-  <strong>Editor for the open standard for Verifiable Effort in writing.</strong><br/>
-  Moving past AI detection toward deterministic process transparency.
-  <br/><br/>
-    
-  <a href="https://demo.firl.nl/">Live Demo</a> ·
-  <a href="https://firl.nl/research/blog/Manifesto/">Read the Manifesto</a> ·
-  <a href="./spec/v0.1/README.md">Spec v0.1</a> ·
-</div>
+**Glass Box** is a reference implementation of the [TWFF specification](../spec/SPEC.md). It is
+a local-first writing editor that records your process and exports a PDF proof of your writing
+effort.
+
+[![Try it](https://img.shields.io/badge/demo-demo.firl.nl-4dabf7?style=for-the-badge)](https://demo.firl.nl)
+[![Spec](https://img.shields.io/badge/spec-v0.2.0-10b981?style=for-the-badge)](../spec/SPEC.md)
+[![License](https://img.shields.io/badge/license-apache--2.0-f59e0b?style=for-the-badge)](../LICENSE)
 
 ---
 
-## Repository Structure
+## Quick start
+
+```bash
+git clone https://github.com/Functional-Intelligence-Research-Lab/twff
+cd twff/glassbox
+pip install -r requirements.txt
+python app.py
+# Open http://localhost:8080
+```
+
+PDF export works immediately. For AI features, install [Ollama](https://ollama.com):
+```bash
+ollama pull qwen2.5:0.5b   # ~400MB, runs on student hardware
+```
+
+---
+
+## Why TWFF? (vs submitting a .docx or .txt)
+
+| Capability | `.docx` / `.txt` | AI Detector | **TWFF** |
+|---|---|---|---|
+| Proves when edits were made | ✗ | ✗ | **✓** |
+| Records AI interactions | depends on OS | ✗ | **✓** |
+| Shows paste events | ✗ | ✗ | **✓** |
+| Records revision history | Partial (Track Changes) | ✗ | **✓** |
+| Cryptographically verifiable | ✗ | ✗ | **✓** |
+| Open standard | Partially (OOXML) | ✗ (proprietary) | **✓** |
+| Local-first / no cloud | ✓ | ✗ (sends text) | **✓** |
+| Deterministic (not probabilistic) | N/A | **✗** | **✓** |
+| Human-readable export | ✓ | Score only | **✓ PDF + JSON** |
+
+A `.docx` tells you what was written. TWFF tells you how it was written: edit by edit, paste by
+paste, AI call by AI call. It doesn't log individual keystrokes; see the
+[spec's privacy design](../spec/SPEC.md) for what's recorded and what deliberately isn't.
+
+---
+
+## Features
+
+| Feature | Status | Notes |
+|---|---|---|
+| TWFF export (`.twff`) | done | ZIP archive with XHTML + process-log.json |
+| PDF export | done | WeasyPrint or ReportLab (auto-selected) |
+| PDF preview before export | done | Template selector + live HTML preview |
+| AI paraphrase | done | Requires Ollama |
+| AI continuation | done | Requires Ollama |
+| Ghost completion (Tab) | done | Inline suggestion, Escape to dismiss |
+| Command palette (Ctrl+K) | done | Full keyboard navigation |
+| Paste-at-cursor | done | Annotated and logged, no blocking dialogs |
+| Quote and cite | done | AI citation suggestion |
+| Offline fallback | done | Rule-based completions without Ollama |
+| Process log hash chain | done | SHA-256 per-event chained hash |
+
+---
+
+## Project structure
 
 ```text
-twff/
-├── spec/               ← The open standard (spec, schema, examples)
-│   ├── SPEC.md
-│   └── schema/
-│       ├── process-log.schema.json
-│       └── manifest.schema.json
-│
-├── glassbox/           ← Reference implementation (the "Glass Box" editor)
-│   ├── backend/
-│   │   ├── app.py
-│   │   ├── css/
-│   │   │   └── theme.css
-│   │   └── components/
-│   │       ├── app.py          ← Entry point
-│   │       ├── editor.py       ← NiceGUI WYSIWYG (UI only)
-│   │       ├── layout.py       ← App shell
-│   │       └── process_log.py  ← TWFF logging (framework-agnostic)
-│   └── docs/
-│
-└── README.md           ← This file
+glassbox/
+├── app.py                   Entry point (NiceGUI)
+├── requirements.txt         Python dependencies
+├── setup_weasyprint.py      WeasyPrint native library checker
+├── css/
+│   └── theme.css            Design tokens + component styles
+├── components/
+│   ├── editor.py            Main editor (paste, ghost, AI, export)
+│   ├── layout.py            Page layout (header, legend, footer)
+│   ├── command_palette.py   Ctrl+K command palette
+│   ├── process_log.py       TWFF event log + export
+│   ├── ollama_client.py     Async Ollama integration
+│   └── pdf_exporter.py      Dual-engine PDF (WeasyPrint / ReportLab)
+└── templates/
+    └── academic_paper.py    PDF template: academic essay
 ```
 
 ### Why separate `spec/` and `glassbox/`?
 
-The **spec** is an open standard — it has its own versioning, governance, and
-contributor lifecycle. The **glassbox** is one implementation of that standard.
-They should be able to version independently. Future implementations (browser
-extension, LMS plugin, CLI) will import `process_log.py` without touching any NiceGUI code.
+The spec is an open standard with its own versioning, governance, and contributor lifecycle.
+Glass Box is one implementation of that standard, and they version independently. Colophon (a
+browser extension for Google Docs) is a second implementation; see the
+[main README](../README.md) for both.
 
 ---
 
-## Quick Start (Glass Box)
+## PDF export engines
+
+| Engine | Platform | Install | Quality |
+|---|---|---|---|
+| **WeasyPrint** | Linux, macOS | `pip install weasyprint` + native libs | Full CSS, paginated A4 |
+| **ReportLab** | All platforms | `pip install reportlab` (in requirements) | Clean layout, all features |
+
+Glass Box auto-detects which engine is available and uses the best one. On Windows, ReportLab is
+used automatically; no native library setup required.
+
+Run `python setup_weasyprint.py --check` to see what's available on your system.
+
+---
+
+## Validate TWFF examples
 
 ```bash
-cd glassbox
-pip install -r requirements.txt
-python app.py
-# → http://localhost:8080
+# Install jsonschema (one-time)
+pip install jsonschema
+
+# Validate all examples against the published schema
+python spec/validate_examples.py
+
+# Add a _hash chain to examples (if missing)
+python spec/validate_examples.py --fix
 ```
 
----
-
-## ANNOTATION_TYPES — Single Source of Truth
-
-All annotation colours, CSS class names, log event types, and legend labels
-are driven by a single registry in `glassbox/backend/components/process_log.py`:
-
-```python
-ANNOTATION_TYPES = {
-    "ai_paraphrase":  { "css_class": "ann-paraphrase", "label": "AI Paraphrase", ... },
-    "ai_generated":   { "css_class": "ann-generated",  "label": "AI Generated",  ... },
-    "external_paste": { "css_class": "ann-external",   "label": "External Source", ... },
-    "ai_completion":  { "css_class": "ann-completion", "label": "AI Completion", ... },
-}
+Expected output for a valid log:
 ```
-
-Adding a new annotation type = one dict entry. CSS, legend, and log all update automatically.
+JSON Schema: valid
+Hash chain: intact (12 events)
+1/1 files passed all checks.
+```
 
 ---
 
 ## License
 
-Apache — [see LICENSE](./LICENSE)
+Apache 2.0, see [LICENSE](../LICENSE).
 
-**FIRL — Functional Intelligence Research Lab**
+**FIRL, Functional Intelligence Research Lab**
 [firl.nl](https://firl.nl) · [LinkedIn](https://linkedin.com/company/firl-nl) · [GitHub](https://github.com/Functional-Intelligence-Research-Lab)

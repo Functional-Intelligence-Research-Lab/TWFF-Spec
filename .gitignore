@@ -4,3 +4,7 @@
 .gitignore
 .DS_Store
 .cpython-*
+
+# local editorial scratch, never committed
+PREPRINT_UPDATED.md
+TWFF_preprint_draft_V0.pdf

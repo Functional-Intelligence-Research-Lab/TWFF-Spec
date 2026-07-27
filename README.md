@@ -57,10 +57,10 @@ twff/
 ├── spec/                        # The open standard
 │   ├── SPEC.md                  # Normative specification (v0.2)
 │   ├── process-log.schema.json  # JSON Schema for process-log.json (v0.2)
-│   ├── manifest.schema.json     # JSON Schema for manifest.xml
+│   ├── manifest.xsd             # XML Schema for manifest.xml
 │   ├── validate_examples.py     # Schema validation script
 │   └── v0.1/                    # Frozen v0.1 release
-│   └── v0.2/                    # V0.2 archive
+│   └── v0.2/                    # Version marker for the current spec
 │
 ├── glassbox/                    # Reference implementation (Soon to be archived as a separate repo)
 │   ├── README.md

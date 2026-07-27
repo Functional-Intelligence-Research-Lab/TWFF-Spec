@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+  <!-- TWFF meta/manifest.xml: lists every file in the container with its media
+       type, following the EPUB package.opf convention. See SPEC.md 3.4. -->
+
+  <xs:element name="manifest">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="item" minOccurs="1" maxOccurs="unbounded">
+          <xs:complexType>
+            <xs:attribute name="id" type="xs:ID" use="required"/>
+            <xs:attribute name="href" type="xs:anyURI" use="required"/>
+            <xs:attribute name="media-type" use="required">
+              <xs:simpleType>
+                <xs:restriction base="xs:string">
+                  <xs:pattern value="[a-zA-Z0-9!#$&amp;\-\^_.+]+/[a-zA-Z0-9!#$&amp;\-\^_.+]+"/>
+                </xs:restriction>
+              </xs:simpleType>
+            </xs:attribute>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+</xs:schema>
