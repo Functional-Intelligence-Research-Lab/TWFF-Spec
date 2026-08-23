@@ -175,6 +175,12 @@ chain, this event's `_hash` uses `session_id` as its previous-hash input (§5.2)
 Marks the end of a writing session. MUST be the last event in `events`.
 `meta`: `{}`
 
+#### `session_resume`
+Marks a previously-started session resuming after being paused, e.g. the author closed and
+reopened the document across multiple sittings. Not a session boundary the way `session_start`/
+`session_end` are; a single logical session MAY contain any number of these.
+`meta`: `{}`
+
 #### `edit_block`
 Records a discrete edit to the document content. Implementations SHOULD aggregate rapid
 sequential keystrokes into a single block rather than recording per-keystroke — TWFF never
